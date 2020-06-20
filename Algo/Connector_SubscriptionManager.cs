@@ -50,7 +50,7 @@ namespace StockSharp.Algo
 
 				public ISubscriptionMessage CreateSubscriptionContinue()
 				{
-					var subscrMsg = (ISubscriptionMessage)Subscription.SubscriptionMessage.Clone();
+					var subscrMsg = Subscription.SubscriptionMessage.TypedClone();
 
 					if (_last != null)
 						subscrMsg.From = _last.Value;
@@ -78,7 +78,8 @@ namespace StockSharp.Algo
 			private readonly Dictionary<long, Tuple<ISubscriptionMessage, Subscription>> _requests = new Dictionary<long, Tuple<ISubscriptionMessage, Subscription>>();
 			private readonly List<SubscriptionInfo> _keeped = new List<SubscriptionInfo>();
 			private readonly HashSet<long> _notFound = new HashSet<long>();
-
+			private readonly Dictionary<long, long> _subscriptionAllMap = new Dictionary<long, long>();
+			
 			private readonly Connector _connector;
 
 			public SubscriptionManager(Connector connector)
@@ -107,14 +108,16 @@ namespace StockSharp.Algo
 					_requests.Clear();
 					_keeped.Clear();
 					_notFound.Clear();
+					_subscriptionAllMap.Clear();
 				}
 			}
 
 			public IEnumerable<Security> GetSubscribers(DataType dataType)
 			{
 				return Subscriptions
-				       .Where(s => s.DataType == dataType && s.Security != null)
-				       .Select(s => s.Security);
+				       .Where(s => s.DataType == dataType)
+				       .Select(s => _connector.TryGetSecurity(s.SecurityId))
+					   .Where(s => s != null);
 			}
 
 			public IEnumerable<Portfolio> SubscribedPortfolios => Subscriptions.Select(s => s.Portfolio).Where(p => p != null);
@@ -127,14 +130,29 @@ namespace StockSharp.Algo
 					_connector.AddWarningLog(LocalizedStrings.SubscriptionNonExist, id);
 			}
 
+			private void Remove(long id)
+			{
+				// keed subscription instancies for tracing purpose
+				//_subscriptions.Remove(id);
+				_connector.AddInfoLog("Subscription {0} removed.", id);
+			}
+
 			private SubscriptionInfo TryGetInfo(long id, bool remove, DateTimeOffset? time = null, bool addLog = true)
 			{
 				lock (_syncObject)
 				{
+					if (_subscriptionAllMap.TryGetValue(id, out var parentId))
+					{
+						if (remove)
+							_subscriptionAllMap.Remove(id);
+
+						id = parentId;
+					}
+
 					if (_subscriptions.TryGetValue(id, out var info))
 					{
 						if (remove)
-							_subscriptions.Remove(id);
+							Remove(id);
 						else if (time != null)
 						{
 							if (!info.UpdateLastTime(time.Value))
@@ -177,9 +195,11 @@ namespace StockSharp.Algo
 
 			public Subscription TryFindSubscription(long id, DataType dataType, Security security = null)
 			{
+				var secId = security?.ToSecurityId();
+
 				var subscription = id > 0
 					? TryGetSubscription(id, false)
-					: Subscriptions.FirstOrDefault(s => s.DataType == dataType && s.Security == security);
+					: Subscriptions.FirstOrDefault(s => s.DataType == dataType && s.SecurityId == secId);
 
 				if (subscription == null && id == 0)
 					_connector.AddWarningLog(LocalizedStrings.SubscriptionNonExist, Tuple.Create(dataType, security));
@@ -231,14 +251,7 @@ namespace StockSharp.Algo
 
 			private void ChangeState(Subscription subscription, SubscriptionStates state)
 			{
-				const string text = "Subscription {0} {1}->{2}.";
-
-				if (subscription.State.IsOk(state))
-					_connector.AddInfoLog(text, subscription.TransactionId, subscription.State, state);
-				else
-					_connector.AddWarningLog(text, subscription.TransactionId, subscription.State, state);
-
-				subscription.State = state;
+				subscription.State = subscription.State.ChangeSubscriptionState(state, subscription.TransactionId, _connector);
 			}
 
 			public Subscription ProcessResponse(SubscriptionResponseMessage response, out ISubscriptionMessage originalMsg, out bool unexpectedCancelled)
@@ -284,7 +297,7 @@ namespace StockSharp.Algo
 							{
 								ChangeState(subscription, SubscriptionStates.Error);
 
-								_subscriptions.Remove(subscription.TransactionId);
+								Remove(subscription.TransactionId);
 
 								unexpectedCancelled = subscription.State.IsActive();
 
@@ -295,7 +308,7 @@ namespace StockSharp.Algo
 						{
 							ChangeState(subscription, SubscriptionStates.Stopped);
 
-							_subscriptions.Remove(subscription.TransactionId);
+							Remove(subscription.TransactionId);
 
 							// remove subscribe and unsubscribe requests
 							_requests.Remove(subscription.TransactionId);
@@ -312,7 +325,7 @@ namespace StockSharp.Algo
 				}
 			}
 
-			public void Subscribe(Subscription subscription)
+			public void Subscribe(Subscription subscription, bool keepBackMode = false)
 			{
 				if (subscription == null)
 					throw new ArgumentNullException(nameof(subscription));
@@ -332,7 +345,13 @@ namespace StockSharp.Algo
 					_subscriptions.Add(subscription.TransactionId, info);
 				}
 
-				SendRequest((ISubscriptionMessage)subscrMsg.Clone(), subscription);
+				var clone = subscrMsg.TypedClone();
+				clone.Adapter = subscrMsg.Adapter;
+
+				if (keepBackMode)
+					clone.BackMode = subscrMsg.BackMode;
+
+				SendRequest(clone, subscription);
 			}
 
 			public void UnSubscribe(Subscription subscription)
@@ -342,11 +361,11 @@ namespace StockSharp.Algo
 
 				if (!subscription.State.IsActive())
 				{
-					_connector.AddWarningLog("Subscription {0} has state {1}. Cannot unsubscribe.", subscription.TransactionId, subscription.State);
+					_connector.AddWarningLog(LocalizedStrings.SubscriptionInvalidState, subscription.TransactionId, subscription.State);
 					return;
 				}
 
-				var unsubscribe = subscription.DataType.ToSubscriptionMessage();
+				var unsubscribe = subscription.SubscriptionMessage.TypedClone();
 
 				unsubscribe.TransactionId = _connector.TransactionIdGenerator.GetNextId();
 				unsubscribe.OriginalTransactionId = subscription.TransactionId;
@@ -364,7 +383,7 @@ namespace StockSharp.Algo
 				lock (_syncObject)
 					_requests.Add(request.TransactionId, Tuple.Create(request, subscription));
 
-				_connector.AddInfoLog(request.IsSubscribe ? LocalizedStrings.SubscriptionSent : LocalizedStrings.UnSubscriptionSent, subscription.Security?.Id, request);
+				_connector.AddInfoLog(request.IsSubscribe ? LocalizedStrings.SubscriptionSent : LocalizedStrings.UnSubscriptionSent, subscription.SecurityId, request);
 				_connector.SendInMessage((Message)request);
 			}
 
@@ -426,13 +445,15 @@ namespace StockSharp.Algo
 				}
 			}
 
-			public void ProcessLookupResponse<T>(ISubscriptionIdMessage message, T item)
+			public IEnumerable<Subscription> ProcessLookupResponse<T>(ISubscriptionIdMessage message, T item)
 			{
-				ProcessLookupResponse(message, new[] { item });
+				return ProcessLookupResponse(message, new[] { item });
 			}
 
-			public void ProcessLookupResponse<T>(ISubscriptionIdMessage message, T[] items)
+			public IEnumerable<Subscription> ProcessLookupResponse<T>(ISubscriptionIdMessage message, T[] items)
 			{
+				var subscriptions = new List<Subscription>();
+
 				foreach (var id in message.GetSubscriptionIds())
 				{
 					var info = TryGetInfo(id, false);
@@ -446,8 +467,11 @@ namespace StockSharp.Algo
 						continue;
 					}
 
-					info.LookupItems.AddRange(items.Cast<object>());	
+					info.LookupItems.AddRange(items.Cast<object>());
+					subscriptions.Add(info.Subscription);
 				}
+
+				return subscriptions;
 			}
 
 			public Subscription ProcessSubscriptionFinishedMessage(SubscriptionFinishedMessage message, out object[] items)
@@ -516,22 +540,26 @@ namespace StockSharp.Algo
 				}
 			}
 
-			public Subscription TryFindFilteredMarketDepth(Security security)
-			{
-				var subscription = Subscriptions.FirstOrDefault(s => s.SubscriptionMessage is FilteredMarketDepthMessage && s.Security == security);
-
-				if (subscription == null)
-					_connector.AddWarningLog(LocalizedStrings.SubscriptionNonExist, $"Filtered({security?.Id})");
-
-				return subscription;
-			}
-
 			public Subscription TryGetSubscription(Portfolio portfolio)
 			{
 				if (portfolio == null)
 					throw new ArgumentNullException(nameof(portfolio));
 
 				return Subscriptions.FirstOrDefault(s => s.Portfolio == portfolio);
+			}
+
+			public void SubscribeAll(SubscriptionSecurityAllMessage allMsg)
+			{
+				lock (_syncObject)
+					_subscriptionAllMap.Add(allMsg.TransactionId, allMsg.ParentTransactionId);
+
+				var mdMsg = new MarketDataMessage
+				{
+					Adapter = allMsg.Adapter,
+					BackMode = allMsg.BackMode,
+				};
+				allMsg.CopyTo(mdMsg);
+				Subscribe(new Subscription(mdMsg, (SecurityMessage)null), true);
 			}
 		}
 	}

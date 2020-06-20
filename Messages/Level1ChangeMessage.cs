@@ -186,14 +186,14 @@ namespace StockSharp.Messages
 		Theta,
 
 		/// <summary>
-		/// Initial margin (buy).
+		/// Initial margin to buy.
 		/// </summary>
 		[EnumMember]
 		[Display(ResourceType = typeof(LocalizedStrings), Name = LocalizedStrings.Str304Key)]
 		MarginBuy,
 
 		/// <summary>
-		/// Initial margin (sell).
+		/// Initial margin to sell.
 		/// </summary>
 		[EnumMember]
 		[Display(ResourceType = typeof(LocalizedStrings), Name = LocalizedStrings.Str305Key)]
@@ -793,6 +793,20 @@ namespace StockSharp.Messages
 		[EnumMember]
 		[Display(ResourceType = typeof(LocalizedStrings), Name = LocalizedStrings.LastTradeVolumeHighKey, Description = LocalizedStrings.LastTradeVolumeHighDescKey)]
 		LastTradeVolumeHigh,
+
+		/// <summary>
+		/// Option margin leverage.
+		/// </summary>
+		[EnumMember]
+		[Display(ResourceType = typeof(LocalizedStrings), Name = LocalizedStrings.OptionMarginKey, Description = LocalizedStrings.OptionMarginDescKey)]
+		OptionMargin,
+
+		/// <summary>
+		/// Synthetic option position margin leverage.
+		/// </summary>
+		[EnumMember]
+		[Display(ResourceType = typeof(LocalizedStrings), Name = LocalizedStrings.OptionSyntheticMarginKey, Description = LocalizedStrings.OptionSyntheticMarginDescKey)]
+		OptionSyntheticMargin,
 	}
 
 	/// <summary>
@@ -810,6 +824,9 @@ namespace StockSharp.Messages
 		[DescriptionLoc(LocalizedStrings.SecurityIdKey, true)]
 		[MainCategory]
 		public SecurityId SecurityId { get; set; }
+
+		/// <inheritdoc />
+		public override DataType DataType => DataType.Level1;
 
 		/// <summary>
 		/// Initializes a new instance of the <see cref="Level1ChangeMessage"/>.
@@ -830,7 +847,7 @@ namespace StockSharp.Messages
 		/// <inheritdoc />
 		public override string ToString()
 		{
-			return base.ToString() + $",Sec={SecurityId},Changes={Changes.Select(c => c.ToString()).Join(",")}";
+			return base.ToString() + $",Sec={SecurityId},Changes={Changes.Select(c => c.ToString()).JoinComma()}";
 		}
 	}
 }

@@ -267,6 +267,8 @@ namespace StockSharp.Messages
 		[Ignore]
 		public abstract object Arg { get; set; }
 
+		DataType ISubscriptionIdMessage.DataType => DataType.Create(GetType(), Arg);
+
 		/// <summary>
 		/// Initialize <see cref="CandleMessage"/>.
 		/// </summary>
@@ -355,7 +357,16 @@ namespace StockSharp.Messages
 		/// Initializes a new instance of the <see cref="TimeFrameCandleMessage"/>.
 		/// </summary>
 		public TimeFrameCandleMessage()
-			: base(MessageTypes.CandleTimeFrame)
+			: this(MessageTypes.CandleTimeFrame)
+		{
+		}
+
+		/// <summary>
+		/// Initializes a new instance of the <see cref="TimeFrameCandleMessage"/>.
+		/// </summary>
+		/// <param name="type">Message type.</param>
+		protected TimeFrameCandleMessage(MessageTypes type)
+			: base(type)
 		{
 		}
 
@@ -488,11 +499,17 @@ namespace StockSharp.Messages
 		{
 		}
 
+		private Unit _priceRange = new Unit();
+
 		/// <summary>
 		/// Range of price.
 		/// </summary>
 		[DataMember]
-		public Unit PriceRange { get; set; }
+		public Unit PriceRange
+		{
+			get => _priceRange;
+			set => _priceRange = value ?? throw new ArgumentNullException(nameof(value));
+		}
 
 		/// <summary>
 		/// Create a copy of <see cref="RangeCandleMessage"/>.
@@ -517,26 +534,6 @@ namespace StockSharp.Messages
 		/// <inheritdoc />
 		public override object CloneArg() => PriceRange.Clone();
 	}
-
-	///// <summary>
-	///// Symbol types.
-	///// </summary>
-	//[System.Runtime.Serialization.DataContract]
-	//[Serializable]
-	//public enum PnFTypes
-	//{
-	//	/// <summary>
-	//	/// X (price up).
-	//	/// </summary>
-	//	[EnumMember]
-	//	X,
-
-	//	/// <summary>
-	//	/// 0 (price down).
-	//	/// </summary>
-	//	[EnumMember]
-	//	O,
-	//}
 
 	/// <summary>
 	/// Point in figure (X0) candle arg.
@@ -630,17 +627,17 @@ namespace StockSharp.Messages
 		{
 		}
 
+		private PnFArg _pnFArg = new PnFArg();
+
 		/// <summary>
 		/// Value of arguments.
 		/// </summary>
 		[DataMember]
-		public PnFArg PnFArg { get; set; }
-
-		///// <summary>
-		///// Type of symbols.
-		///// </summary>
-		//[DataMember]
-		//public PnFTypes PnFType { get; set; }
+		public PnFArg PnFArg
+		{
+			get => _pnFArg;
+			set => _pnFArg = value ?? throw new ArgumentNullException(nameof(value));
+		}
 
 		/// <summary>
 		/// Create a copy of <see cref="PnFCandleMessage"/>.
@@ -683,11 +680,17 @@ namespace StockSharp.Messages
 		{
 		}
 
+		private Unit _boxSize = new Unit();
+
 		/// <summary>
 		/// Possible price change range.
 		/// </summary>
 		[DataMember]
-		public Unit BoxSize { get; set; }
+		public Unit BoxSize
+		{
+			get => _boxSize;
+			set => _boxSize = value ?? throw new ArgumentNullException(nameof(value));
+		}
 
 		/// <summary>
 		/// Create a copy of <see cref="RenkoCandleMessage"/>.
@@ -711,5 +714,34 @@ namespace StockSharp.Messages
 
 		/// <inheritdoc />
 		public override object CloneArg() => BoxSize.Clone();
+	}
+
+	/// <summary>
+	/// The message contains information about the Heikin-Ashi candle.
+	/// </summary>
+	[System.Runtime.Serialization.DataContract]
+	[Serializable]
+	[DisplayNameLoc(LocalizedStrings.HeikinAshiKey)]
+	public class HeikinAshiCandleMessage : TimeFrameCandleMessage
+	{
+		/// <summary>
+		/// Initializes a new instance of the <see cref="HeikinAshiCandleMessage"/>.
+		/// </summary>
+		public HeikinAshiCandleMessage()
+			: base(MessageTypes.CandleHeikinAshi)
+		{
+		}
+
+		/// <summary>
+		/// Create a copy of <see cref="HeikinAshiCandleMessage"/>.
+		/// </summary>
+		/// <returns>Copy.</returns>
+		public override Message Clone()
+		{
+			return CopyTo(new HeikinAshiCandleMessage
+			{
+				TimeFrame = TimeFrame
+			});
+		}
 	}
 }

@@ -17,6 +17,8 @@ namespace StockSharp.Algo.Slippage
 {
 	using System;
 
+	using Ecng.Common;
+
 	using StockSharp.Messages;
 
 	/// <summary>
@@ -73,7 +75,7 @@ namespace StockSharp.Algo.Slippage
 		/// <returns>Copy.</returns>
 		public override IMessageChannel Clone()
 		{
-			return new SlippageMessageAdapter((IMessageAdapter)InnerAdapter.Clone());
+			return new SlippageMessageAdapter(InnerAdapter.TypedClone());
 		}
 	}
 }

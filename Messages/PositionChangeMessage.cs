@@ -166,6 +166,55 @@ namespace StockSharp.Messages
 		[EnumMember]
 		[Display(ResourceType = typeof(LocalizedStrings), Name = LocalizedStrings.Str312Key)]
 		SettlementPrice,
+
+		/// <summary>
+		/// Orders (bids).
+		/// </summary>
+		[EnumMember]
+		[Display(ResourceType = typeof(LocalizedStrings), Name = LocalizedStrings.OrdersBidsKey)]
+		BuyOrdersCount,
+		
+		/// <summary>
+		/// Orders (asks).
+		/// </summary>
+		[EnumMember]
+		[Display(ResourceType = typeof(LocalizedStrings), Name = LocalizedStrings.OrdersAsksKey)]
+		SellOrdersCount,
+		
+		/// <summary>
+		/// Margin (buy).
+		/// </summary>
+		[EnumMember]
+		[Display(ResourceType = typeof(LocalizedStrings), Name = LocalizedStrings.Str304Key)]
+		BuyOrdersMargin,
+		
+		/// <summary>
+		/// Margin (sell).
+		/// </summary>
+		[EnumMember]
+		[Display(ResourceType = typeof(LocalizedStrings), Name = LocalizedStrings.Str305Key)]
+		SellOrdersMargin,
+		
+		/// <summary>
+		/// Orders (margin).
+		/// </summary>
+		[EnumMember]
+		[Display(ResourceType = typeof(LocalizedStrings), Name = LocalizedStrings.OrdersMarginKey)]
+		OrdersMargin,
+
+		/// <summary>
+		/// Orders.
+		/// </summary>
+		[EnumMember]
+		[Display(ResourceType = typeof(LocalizedStrings), Name = LocalizedStrings.Str668Key)]
+		OrdersCount,
+
+		/// <summary>
+		/// Trades.
+		/// </summary>
+		[EnumMember]
+		[Display(ResourceType = typeof(LocalizedStrings), Name = LocalizedStrings.Str985Key)]
+		TradesCount,
 	}
 
 	/// <summary>
@@ -252,6 +301,9 @@ namespace StockSharp.Messages
 		//{
 		//}
 
+		/// <inheritdoc />
+		public override DataType DataType => DataType.PositionChanges;
+
 		/// <summary>
 		/// Create a copy of <see cref="PositionChangeMessage"/>.
 		/// </summary>
@@ -282,7 +334,7 @@ namespace StockSharp.Messages
 		/// <inheritdoc />
 		public override string ToString()
 		{
-			return base.ToString() + $",Sec={SecurityId},P={PortfolioName},CL={ClientCode},L={LimitType},Changes={Changes.Select(c => c.ToString()).Join(",")}";
+			return base.ToString() + $",Sec={SecurityId},P={PortfolioName},CL={ClientCode},L={LimitType},Changes={Changes.Select(c => c.ToString()).JoinComma()}";
 		}
 	}
 }

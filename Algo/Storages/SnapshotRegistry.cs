@@ -191,7 +191,7 @@ namespace StockSharp.Algo.Storages
 								return false;
 
 							return true;
-						}).Select(m => (TMessage)m.Clone()).ToArray();
+						}).Select(m => m.TypedClone()).ToArray();
 					}
 				}
 
@@ -235,7 +235,7 @@ namespace StockSharp.Algo.Storages
 
 						foreach (var buffer in buffers)
 						{
-							stream.Write(buffer);
+							stream.WriteEx(buffer);
 						}
 					}
 				}
@@ -273,7 +273,7 @@ namespace StockSharp.Algo.Storages
 					}
 					else
 					{
-						var dates = InteropHelper
+						var dates = IOHelper
 						            .GetDirectories(_path)
 						            .Where(dir => File.Exists(Path.Combine(dir, _fileNameWithExtension)))
 						            .Select(dir => LocalMarketDataDrive.GetDate(Path.GetFileName(dir)));

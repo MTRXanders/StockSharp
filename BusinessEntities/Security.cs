@@ -215,6 +215,7 @@ namespace StockSharp.BusinessEntities
 			Description = LocalizedStrings.Str382Key,
 			GroupName = LocalizedStrings.GeneralKey,
 			Order = 6)]
+		[EditorExtension(AutoComplete = true, Sorted = true)]
 		public CurrencyTypes? Currency
 		{
 			get => _currency;
@@ -555,6 +556,31 @@ namespace StockSharp.BusinessEntities
 
 				_faceValue = value;
 				Notify(nameof(FaceValue));
+			}
+		}
+
+		private string _primaryId;
+
+		/// <summary>
+		/// Identifier on primary exchange.
+		/// </summary>
+		[DataMember]
+		[Display(
+			ResourceType = typeof(LocalizedStrings),
+			Name = LocalizedStrings.PrimaryIdKey,
+			Description = LocalizedStrings.PrimaryIdDescKey,
+			GroupName = LocalizedStrings.GeneralKey,
+			Order = 18)]
+		public string PrimaryId
+		{
+			get => _primaryId;
+			set
+			{
+				if (_primaryId == value)
+					return;
+
+				_primaryId = value;
+				Notify(nameof(PrimaryId));
 			}
 		}
 
@@ -2049,6 +2075,7 @@ namespace StockSharp.BusinessEntities
 			destination.CommissionTaker = CommissionTaker;
 			destination.CommissionMaker = CommissionMaker;
 			destination.FaceValue = FaceValue;
+			destination.PrimaryId = PrimaryId;
 
 			//if (destination.ExtensionInfo == null)
 			//	destination.ExtensionInfo = new SynchronizedDictionary<object, object>();

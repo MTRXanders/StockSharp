@@ -104,7 +104,7 @@ namespace StockSharp.Algo.Testing
 			_lastDepthDate = message.LocalTime.Date;
 
 			// чтобы склонировать внутренние котировки
-			//message = (QuoteChangeMessage)message.Clone();
+			//message = message.TypedClone();
 			// TODO для ускорения идет shallow copy котировок
 			var newBids = message.IsSorted ? (IEnumerable<QuoteChange>)message.Bids : message.Bids.OrderByDescending(q => q.Price);
 			var newAsks = message.IsSorted ? (IEnumerable<QuoteChange>)message.Asks : message.Asks.OrderBy(q => q.Price);
@@ -761,8 +761,11 @@ namespace StockSharp.Algo.Testing
 		{
 			_securityDefinition = securityDefinition ?? throw new ArgumentNullException(nameof(securityDefinition));
 
-			_priceStepUpdated = _securityDefinition.PriceStep != null;
-			_volumeStepUpdated = _securityDefinition.VolumeStep != null;
+			if (_securityDefinition.PriceStep != null)
+				_priceStepUpdated = true;
+
+			if (_securityDefinition.VolumeStep != null)
+				_volumeStepUpdated = true;
 		}
 	}
 }

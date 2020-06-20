@@ -22,7 +22,7 @@ namespace SampleConnection
 
 	public partial class SecuritiesWindow
 	{
-		private readonly SynchronizedDictionary<Subscription, QuotesWindow> _quotesWindows = new SynchronizedDictionary<Subscription, QuotesWindow>();
+		private readonly SynchronizedDictionary<Security, QuotesWindow> _quotesWindows = new SynchronizedDictionary<Security, QuotesWindow>();
 		private readonly SynchronizedList<ChartWindow> _chartWindows = new SynchronizedList<ChartWindow>();
 		private bool _initialized;
 		private bool _appClosing;
@@ -32,11 +32,18 @@ namespace SampleConnection
 			InitializeComponent();
 		}
 
-		private static Connector Connector => MainWindow.Instance.Connector;
+		private static Connector Connector => MainWindow.Instance.MainPanel.Connector;
 
 		private void SecuritiesWindow_OnLoaded(object sender, RoutedEventArgs e)
 		{
-			UpdateTimeFrames(Connector.Adapter.GetTimeFrames());
+			var timeFrames = Connector.Adapter.GetTimeFrames().ToArray();
+
+			if (timeFrames.Length == 0 && Connector.Adapter.IsMarketDataTypeSupported(DataType.Ticks))
+			{
+				timeFrames = new[] { TimeSpan.FromMinutes(1) };
+			}
+
+			UpdateTimeFrames(timeFrames);
 		}
 
 		public void UpdateTimeFrames(IEnumerable<TimeSpan> timeFrames)
@@ -90,8 +97,8 @@ namespace SampleConnection
 
 		private void SecurityPicker_OnSecuritySelected(Security security)
 		{
-			Quotes.IsEnabled = Ticks.IsEnabled = HistTicks.IsEnabled = OrderLog.IsEnabled
-				= NewOrder.IsEnabled = Depth.IsEnabled = DepthAdvanced.IsEnabled = security != null;
+			Level1.IsEnabled = Level1Hist.IsEnabled = Ticks.IsEnabled = TicksHist.IsEnabled =
+				OrderLog.IsEnabled = NewOrder.IsEnabled = Depth.IsEnabled = DepthAdvanced.IsEnabled = security != null;
 
 			TryEnableCandles();
 		}
@@ -123,14 +130,20 @@ namespace SampleConnection
 
 			foreach (var security in SecurityPicker.SelectedSecurities)
 			{
-				// subscribe on order book flow
-				var subscription = connector.SubscribeMarketDepth(security, settings?.From, settings?.To, buildMode: settings?.BuildMode ?? MarketDataBuildModes.LoadAndBuild, maxDepth: settings?.MaxDepth, buildFrom: settings?.BuildFrom);
-
 				// create order book window
 				var window = new QuotesWindow
 				{
 					Title = security.Id + " " + LocalizedStrings.MarketDepth
 				};
+
+				//window.DepthCtrl.UpdateDepth(connector.GetMarketDepth(security));
+				window.Show();
+				
+				// subscribe on order book flow
+				var subscription = connector.SubscribeMarketDepth(security, settings?.From, settings?.To, buildMode: settings?.BuildMode ?? MarketDataBuildModes.LoadAndBuild, maxDepth: settings?.MaxDepth, buildFrom: settings?.BuildFrom);
+
+				_quotesWindows[security] = window;
+
 				window.Closed += (s, e) =>
 				{
 					if (_appClosing)
@@ -139,15 +152,10 @@ namespace SampleConnection
 					if (subscription.State.IsActive())
 						connector.UnSubscribe(subscription);
 				};
-
-				window.DepthCtrl.UpdateDepth(connector.GetMarketDepth(security));
-				window.Show();
-
-				_quotesWindows.Add(subscription, window);
 			}
 		}
 
-		private void QuotesClick(object sender, RoutedEventArgs e)
+		private void Level1Click(object sender, RoutedEventArgs e)
 		{
 			var connector = Connector;
 
@@ -157,6 +165,21 @@ namespace SampleConnection
 					connector.UnSubscribeLevel1(security);
 				else
 					connector.SubscribeLevel1(security);
+			}
+		}
+
+		private void Level1HistClick(object sender, RoutedEventArgs e)
+		{
+			var connector = Connector;
+
+			var wnd = new DatesWindow { From = DateTime.Today.AddDays(-1) };
+
+			if (!wnd.ShowModal(this))
+				return;
+
+			foreach (var security in SecurityPicker.SelectedSecurities)
+			{
+				connector.SubscribeLevel1(security, wnd.From, wnd.To);
 			}
 		}
 
@@ -173,11 +196,11 @@ namespace SampleConnection
 			}
 		}
 
-		private void HistTicksClick(object sender, RoutedEventArgs e)
+		private void TicksHistClick(object sender, RoutedEventArgs e)
 		{
 			var connector = Connector;
 
-			var wnd = new DatesWindow();
+			var wnd = new DatesWindow { From = DateTime.Today.AddDays(-1) };
 
 			if (!wnd.ShowModal(this))
 				return;
@@ -203,7 +226,7 @@ namespace SampleConnection
 
 		private void TraderOnMarketDepthChanged(Subscription subscription, MarketDepth depth)
 		{
-			if (_quotesWindows.TryGetValue(subscription, out var wnd))
+			if (_quotesWindows.TryGetValue(depth.Security, out var wnd))
 				wnd.DepthCtrl.UpdateDepth(depth);
 		}
 
@@ -212,13 +235,13 @@ namespace SampleConnection
 			var wnd = new SecurityLookupWindow
 			{
 				ShowAllOption = Connector.Adapter.IsSupportSecuritiesLookupAll(),
-				Criteria = new Security { Code = "IS" }
+				Criteria = new Security { Code = "EUR", Currency = CurrencyTypes.USD, Type = SecurityTypes.Currency, }
 			};
 
 			if (!wnd.ShowModal(this))
 				return;
 
-			Connector.LookupSecurities(wnd.Criteria);
+			Connector.LookupSecurities(wnd.CriteriaMessage);
 		}
 
 		private void CandlesClick(object sender, RoutedEventArgs e)
@@ -240,7 +263,7 @@ namespace SampleConnection
 				var chartWnd = new ChartWindow(new CandleSeries(typeof(TimeFrameCandle), security, tf)
 				{
 					From = wnd.From,
-					To = wnd.To
+					To = wnd.To,
 				});
 
 				_chartWindows.Add(chartWnd);

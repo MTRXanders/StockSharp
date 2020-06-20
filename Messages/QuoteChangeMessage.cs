@@ -59,7 +59,7 @@ namespace StockSharp.Messages
 	/// <summary>
 	/// Messages containing quotes.
 	/// </summary>
-	[System.Runtime.Serialization.DataContract]
+	[DataContract]
 	[Serializable]
 	public sealed class QuoteChangeMessage : BaseSubscriptionIdMessage<QuoteChangeMessage>, IServerTimeMessage, ISecurityIdMessage
 	{
@@ -150,6 +150,9 @@ namespace StockSharp.Messages
 		[DataMember]
 		public bool HasPositions { get; set; }
 
+		/// <inheritdoc />
+		public override DataType DataType => DataType.MarketDepth;
+
 		/// <summary>
 		/// Initializes a new instance of the <see cref="QuoteChangeMessage"/>.
 		/// </summary>
@@ -178,7 +181,7 @@ namespace StockSharp.Messages
 		/// <inheritdoc />
 		public override string ToString()
 		{
-			return base.ToString() + $",T(S)={ServerTime:yyyy/MM/dd HH:mm:ss.fff},B={Bids.Length},A={Asks.Length}";
+			return base.ToString() + $",Sec={SecurityId},T(S)={ServerTime:yyyy/MM/dd HH:mm:ss.fff},B={Bids.Length},A={Asks.Length},State={State}";
 		}
 	}
 }

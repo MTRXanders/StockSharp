@@ -17,6 +17,8 @@ namespace StockSharp.Algo.Latency
 {
 	using System;
 
+	using Ecng.Common;
+
 	using StockSharp.Messages;
 
 	/// <summary>
@@ -84,7 +86,7 @@ namespace StockSharp.Algo.Latency
 		/// <returns>Copy.</returns>
 		public override IMessageChannel Clone()
 		{
-			return new LatencyMessageAdapter((IMessageAdapter)InnerAdapter.Clone());
+			return new LatencyMessageAdapter(InnerAdapter.TypedClone());
 		}
 	}
 }

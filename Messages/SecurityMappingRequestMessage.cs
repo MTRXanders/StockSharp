@@ -8,7 +8,7 @@ namespace StockSharp.Messages
 	/// </summary>
 	[Serializable]
 	[DataContract]
-	public class SecurityMappingRequestMessage : Message, ISubscriptionMessage
+	public class SecurityMappingRequestMessage : BaseRequestMessage
 	{
 		/// <summary>
 		/// Initialize <see cref="SecurityMappingRequestMessage"/>.
@@ -19,8 +19,7 @@ namespace StockSharp.Messages
 		}
 
 		/// <inheritdoc />
-		[DataMember]
-		public long TransactionId { get; set; }
+		public override DataType DataType => DataType.SecurityMapping;
 
 		/// <summary>
 		/// Create a copy of <see cref="SecurityMappingRequestMessage"/>.
@@ -28,45 +27,9 @@ namespace StockSharp.Messages
 		/// <returns>Copy.</returns>
 		public override Message Clone()
 		{
-			var clone = new SecurityMappingRequestMessage
-			{
-				TransactionId = TransactionId,
-			};
-
+			var clone = new SecurityMappingRequestMessage();
 			CopyTo(clone);
-
 			return clone;
-		}
-
-		/// <inheritdoc />
-		public override string ToString()
-		{
-			return base.ToString() + $",TrId={TransactionId}";
-		}
-
-		DateTimeOffset? ISubscriptionMessage.From
-		{
-			get => null;
-			set { }
-		}
-
-		DateTimeOffset? ISubscriptionMessage.To
-		{
-			// prevent for online mode
-			get => DateTimeOffset.MaxValue;
-			set { }
-		}
-
-		bool ISubscriptionMessage.IsSubscribe
-		{
-			get => true;
-			set { }
-		}
-
-		long IOriginalTransactionIdMessage.OriginalTransactionId
-		{
-			get => 0;
-			set { }
 		}
 	}
 }

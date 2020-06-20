@@ -486,6 +486,7 @@ namespace StockSharp.BusinessEntities
 		[DisplayNameLoc(LocalizedStrings.ExtendedInfoKey)]
 		[DescriptionLoc(LocalizedStrings.Str427Key)]
 		[MainCategory]
+		[Obsolete]
 		public IDictionary<string, object> ExtensionInfo
 		{
 			get => _extensionInfo;
@@ -598,11 +599,40 @@ namespace StockSharp.BusinessEntities
 		[DataMember]
 		public decimal? MinVolume { get; set; }
 
+		/// <summary>
+		/// Position effect.
+		/// </summary>
+		[DataMember]
+		public OrderPositionEffects? PositionEffect { get; set; }
+
+		/// <summary>
+		/// Post-only order.
+		/// </summary>
+		[DataMember]
+		public bool? PostOnly { get; set; }
+
 		/// <inheritdoc />
 		public override string ToString()
 		{
-			return LocalizedStrings.Str534Params
+			var str = LocalizedStrings.Str534Params
 				.Put(TransactionId, Id == null ? StringId : Id.To<string>(), Security?.Id, Portfolio?.Name, Direction == Sides.Buy ? LocalizedStrings.Str403 : LocalizedStrings.Str404, Price, Volume, State, Balance, Type);
+
+			if (Condition != null)
+				str += $" Condition={Condition}";
+
+			if (AveragePrice != null)
+				str += $" AvgPrice={AveragePrice}";
+
+			if (MinVolume != null)
+				str += $" MinVolume={MinVolume}";
+
+			if (PositionEffect != null)
+				str += $" PosEffect={PositionEffect.Value}";
+
+			if (PostOnly != null)
+				str += $",PostOnly={PostOnly.Value}";
+
+			return str;
 		}
 	}
 }

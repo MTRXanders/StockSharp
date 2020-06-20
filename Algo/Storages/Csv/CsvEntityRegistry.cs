@@ -268,10 +268,6 @@ namespace StockSharp.Algo.Storages.Csv
 
 			#region IStorageSecurityList
 
-			void IDisposable.Dispose()
-			{
-			}
-
 			private Action<IEnumerable<Security>> _added;
 
 			event Action<IEnumerable<Security>> ISecurityProvider.Added
@@ -288,6 +284,10 @@ namespace StockSharp.Algo.Storages.Csv
 				remove => _removed -= value;
 			}
 
+			private Security GetById(SecurityId id) => ((IStorageSecurityList)this).ReadById(id.ToStringId());
+
+			Security ISecurityProvider.LookupById(SecurityId id) => GetById(id);
+
 			IEnumerable<Security> ISecurityProvider.Lookup(SecurityLookupMessage criteria)
 			{
 				var secId = criteria.SecurityId.ToStringId(nullIfEmpty: true);
@@ -295,7 +295,7 @@ namespace StockSharp.Algo.Storages.Csv
 				if (secId.IsEmpty())
 					return this.Filter(criteria);
 
-				var security = ((IStorageSecurityList)this).ReadById(secId);
+				var security = GetById(criteria.SecurityId);
 				return security == null ? Enumerable.Empty<Security>() : new[] { security };
 			}
 
@@ -304,7 +304,7 @@ namespace StockSharp.Algo.Storages.Csv
 				Remove(security);
 			}
 
-			void ISecurityStorage.DeleteBy(Security criteria)
+			void ISecurityStorage.DeleteBy(SecurityLookupMessage criteria)
 			{
 				this.Filter(criteria).ForEach(s => Remove(s));
 			}
@@ -349,6 +349,7 @@ namespace StockSharp.Algo.Storages.Csv
 				public bool? Shortable { get; set; }
 				public string BasketCode { get; set; }
 				public string BasketExpression { get; set; }
+				public string PrimaryId { get; set; }
 
 				public Security ToSecurity(SecurityCsvList list)
 				{
@@ -388,6 +389,7 @@ namespace StockSharp.Algo.Storages.Csv
 						Shortable = Shortable,
 						BasketCode = BasketCode,
 						BasketExpression = BasketExpression,
+						PrimaryId = PrimaryId
 					};
 				}
 
@@ -421,6 +423,7 @@ namespace StockSharp.Algo.Storages.Csv
 					Shortable = security.Shortable;
 					BasketCode = security.BasketCode;
 					BasketExpression = security.BasketExpression;
+					PrimaryId = security.PrimaryId;
 				}
 			}
 
@@ -542,6 +545,9 @@ namespace StockSharp.Algo.Storages.Csv
 				if (IsChanged(security.BasketExpression, liteSec.BasketExpression, forced))
 					return true;
 
+				if (IsChanged(security.PrimaryId, liteSec.PrimaryId, forced))
+					return true;
+
 				return false;
 			}
 
@@ -633,6 +639,9 @@ namespace StockSharp.Algo.Storages.Csv
 				if ((reader.ColumnCurr + 1) < reader.ColumnCount)
 					liteSec.MaxVolume = reader.ReadNullableDecimal();
 
+				if ((reader.ColumnCurr + 1) < reader.ColumnCount)
+					liteSec.PrimaryId = reader.ReadString();
+
 				return liteSec.ToSecurity(this);
 			}
 
@@ -676,6 +685,7 @@ namespace StockSharp.Algo.Storages.Csv
 					data.Shortable.To<string>(),
 					data.UnderlyingSecurityMinVolume.To<string>(),
 					data.MaxVolume.To<string>(),
+					data.PrimaryId,
 				});
 			}
 
@@ -742,7 +752,7 @@ namespace StockSharp.Algo.Storages.Csv
 				}
 
 				if ((reader.ColumnCurr + 1) < reader.ColumnCount)
-					portfolio.InternalId = reader.ReadString().To<Guid?>();
+					/*portfolio.InternalId = */reader.ReadString().To<Guid?>();
 
 				return portfolio;
 			}
@@ -774,7 +784,7 @@ namespace StockSharp.Algo.Storages.Csv
 					data.ExpirationDate?.UtcDateTime.ToString(_dateTimeFormat),
 					data.CommissionMaker.To<string>(),
 					data.CommissionTaker.To<string>(),
-					data.InternalId.To<string>(),
+					/*data.InternalId.To<string>()*/string.Empty,
 				});
 			}
 		}
@@ -855,6 +865,17 @@ namespace StockSharp.Algo.Storages.Csv
 					position.SettlementPrice = reader.ReadNullableDecimal();
 				}
 
+				if ((reader.ColumnCurr + 1) < reader.ColumnCount)
+				{
+					position.BuyOrdersCount = reader.ReadNullableInt();
+					position.SellOrdersCount = reader.ReadNullableInt();
+					position.BuyOrdersMargin = reader.ReadNullableDecimal();
+					position.SellOrdersMargin = reader.ReadNullableDecimal();
+					position.OrdersMargin = reader.ReadNullableDecimal();
+					position.OrdersCount = reader.ReadNullableInt();
+					position.TradesCount = reader.ReadNullableInt();
+				}
+
 				return position;
 			}
 
@@ -885,10 +906,17 @@ namespace StockSharp.Algo.Storages.Csv
 					data.UnrealizedPnL.To<string>(),
 					data.CurrentPrice.To<string>(),
 					data.SettlementPrice.To<string>(),
+					data.BuyOrdersCount.To<string>(),
+					data.SellOrdersCount.To<string>(),
+					data.BuyOrdersMargin.To<string>(),
+					data.SellOrdersMargin.To<string>(),
+					data.OrdersMargin.To<string>(),
+					data.OrdersCount.To<string>(),
+					data.TradesCount.To<string>(),
 				});
 			}
 
-			public Position GetPosition(Portfolio portfolio, Security security, string clientCode = "", string depoName = "")
+			public Position GetPosition(Portfolio portfolio, Security security, string clientCode = "", string depoName = "", TPlusLimits? limit = null)
 			{
 				return ((IStorageEntityList<Position>)this).ReadById(Tuple.Create(portfolio, security));
 			}
@@ -901,7 +929,7 @@ namespace StockSharp.Algo.Storages.Csv
 			{
 			}
 
-			protected override object GetKey(MarketDataMessage item) => Tuple.Create(item.SecurityId, item.DataType, item.Arg);
+			protected override object GetKey(MarketDataMessage item) => Tuple.Create(item.SecurityId, item.DataType2);
 
 			protected override void Write(CsvFileWriter writer, MarketDataMessage data)
 			{
@@ -911,13 +939,16 @@ namespace StockSharp.Algo.Storages.Csv
 				if (!data.IsSubscribe)
 					throw new ArgumentException(nameof(data));
 
+				var (type, arg) = data.DataType2.FormatToString();
+				var buildFromTuples = data.BuildFrom?.FormatToString();
+
 				writer.WriteRow(new[]
 				{
 					string.Empty,//data.TransactionId.To<string>(),
 					data.SecurityId.SecurityCode,
 					data.SecurityId.BoardCode,
-					data.DataType.To<string>(),
-					TraderHelper.CandleArgToFolderName(data.Arg),
+					type,
+					arg,
 					data.IsCalcVolumeProfile.To<string>(),
 					data.AllowBuildFromSmallerTimeFrame.To<string>(),
 					data.IsRegularTradingHours.To<string>(),
@@ -927,15 +958,19 @@ namespace StockSharp.Algo.Storages.Csv
 					data.To?.UtcDateTime.ToString(_dateTimeFormat),
 					data.Count.To<string>(),
 					data.BuildMode.To<string>(),
-					data.BuildFrom.To<string>(),
+					null,
 					data.BuildField.To<string>(),
 					data.IsFinished.To<string>(),
+					data.FillGaps.To<string>(),
+					buildFromTuples?.type,
+					buildFromTuples?.arg,
 				});
 			}
 
 			protected override MarketDataMessage Read(FastCsvReader reader)
 			{
 				reader.Skip();
+
 				var message = new MarketDataMessage
 				{
 					//TransactionId = reader.ReadLong(),
@@ -944,19 +979,17 @@ namespace StockSharp.Algo.Storages.Csv
 						SecurityCode = reader.ReadString(),
 						BoardCode = reader.ReadString(),
 					},
-					DataType = reader.ReadEnum<MarketDataTypes>(),
+
 					IsSubscribe = true,
+
+					DataType2 = reader.ReadString().ToDataType(reader.ReadString()),
+					IsCalcVolumeProfile = reader.ReadBool(),
+					AllowBuildFromSmallerTimeFrame = reader.ReadBool(),
+					IsRegularTradingHours = reader.ReadBool(),
+
+					MaxDepth = reader.ReadNullableInt(),
+					NewsId = reader.ReadString(),
 				};
-
-				var argStr = reader.ReadString();
-				message.Arg = message.DataType.IsCandleDataType() ? message.DataType.ToCandleMessage().ToCandleArg(argStr) : argStr;
-
-				message.IsCalcVolumeProfile = reader.ReadBool();
-				message.AllowBuildFromSmallerTimeFrame = reader.ReadBool();
-				message.IsRegularTradingHours = reader.ReadBool();
-
-				message.MaxDepth = reader.ReadNullableInt();
-				message.NewsId = reader.ReadString();
 
 				var str = reader.ReadString();
 				message.From = str.IsEmpty() ? (DateTimeOffset?)null : _dateTimeParser.Parse(str).UtcKind();
@@ -967,11 +1000,17 @@ namespace StockSharp.Algo.Storages.Csv
 				message.Count = reader.ReadNullableLong();
 
 				message.BuildMode = reader.ReadEnum<MarketDataBuildModes>();
-				message.BuildFrom = reader.ReadNullableEnum<MarketDataTypes>();
+				reader.ReadString();
 				message.BuildField = reader.ReadNullableEnum<Level1Fields>();
 
 				if ((reader.ColumnCurr + 1) < reader.ColumnCount)
 					message.IsFinished = reader.ReadBool();
+
+				if ((reader.ColumnCurr + 1) < reader.ColumnCount)
+					message.FillGaps = reader.ReadBool();
+
+				if ((reader.ColumnCurr + 1) < reader.ColumnCount)
+					message.BuildFrom = reader.ReadString().ToDataType(reader.ReadString());
 
 				return message;
 			}
@@ -1115,7 +1154,7 @@ namespace StockSharp.Algo.Storages.Csv
 					list.Init(listErrors);
 
 					if (listErrors.Count > 0)
-						errors.Add(list, new AggregateException(listErrors));
+						errors.Add(list, listErrors.SingleOrAggr());
 				}
 				catch (Exception ex)
 				{

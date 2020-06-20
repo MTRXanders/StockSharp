@@ -114,6 +114,13 @@ namespace StockSharp.Messages
 		[EnumMember]
 		[Display(ResourceType = typeof(LocalizedStrings), Name = LocalizedStrings.BoardInfoKey)]
 		Board,
+
+		/// <summary>
+		/// Heikin Ashi.
+		/// </summary>
+		[EnumMember]
+		[Display(ResourceType = typeof(LocalizedStrings), Name = LocalizedStrings.HeikinAshiKey)]
+		CandleHeikinAshi
 	}
 
 	/// <summary>
@@ -166,12 +173,35 @@ namespace StockSharp.Messages
 		[MainCategory]
 		public DateTimeOffset? To { get; set; }
 
+		DataType ISubscriptionMessage.DataType => DataType2;
+
+		private DataType _dataType2 = Messages.DataType.Level1;
+
+		/// <summary>
+		/// Market data type.
+		/// </summary>
+		[DataMember]
+		public DataType DataType2
+		{
+			get => _dataType2;
+			set => _dataType2 = value ?? throw new ArgumentNullException(nameof(value));
+		}
+
 		/// <summary>
 		/// Market data type.
 		/// </summary>
 		[Browsable(false)]
 		[DataMember]
-		public MarketDataTypes DataType { get; set; }
+		//[Obsolete("Use DataType2 property.")]
+		public new MarketDataTypes DataType
+		{
+#pragma warning disable CS0618 // Type or member is obsolete
+#pragma warning disable CS0612 // Type or member is obsolete
+			get => DataType2.ToMarketDataType().Value;
+			set => DataType2 = value.ToDataType(Arg);
+#pragma warning restore CS0612 // Type or member is obsolete
+#pragma warning restore CS0618 // Type or member is obsolete
+		}
 
 		/// <summary>
 		/// Additional argument for market data request.
@@ -180,7 +210,12 @@ namespace StockSharp.Messages
 		[DisplayNameLoc(LocalizedStrings.Str347Key)]
 		[DescriptionLoc(LocalizedStrings.Str348Key)]
 		[MainCategory]
-		public object Arg { get; set; }
+		[Obsolete("Use DataType2 property.")]
+		public object Arg
+		{
+			get => DataType2.Arg;
+			set => DataType2.Arg = value;
+		}
 
 		/// <inheritdoc />
 		[DataMember]
@@ -197,7 +232,7 @@ namespace StockSharp.Messages
 		public long? Count { get; set; }
 
 		/// <summary>
-		/// Max depth of requested order book. Uses in case <see cref="MarketDataMessage.DataType"/> = <see cref="MarketDataTypes.MarketDepth"/>.
+		/// Max depth of requested order book. Uses in case <see cref="DataType2"/> = <see cref="DataType.MarketDepth"/>.
 		/// </summary>
 		[DataMember]
 		public int? MaxDepth { get; set; }
@@ -224,7 +259,7 @@ namespace StockSharp.Messages
 		/// Which market-data type is used as a source value.
 		/// </summary>
 		[DataMember]
-		public MarketDataTypes? BuildFrom { get; set; }
+		public DataType BuildFrom { get; set; }
 
 		/// <summary>
 		/// Extra info for the <see cref="BuildFrom"/>.
@@ -266,6 +301,23 @@ namespace StockSharp.Messages
 		public TimeSpan? RefreshSpeed { get; set; }
 
 		/// <summary>
+		/// Order log to market depth builder.
+		/// </summary>
+		public IOrderLogMarketDepthBuilder DepthBuilder { get; set; }
+		
+		/// <summary>
+		/// Try fill gaps.
+		/// </summary>
+		[DataMember]
+		public bool FillGaps { get; set; }
+
+		/// <summary>
+		/// Pass through incremental <see cref="QuoteChangeMessage"/>.
+		/// </summary>
+		[DataMember]
+		public bool PassThroughOrderBookInrement { get; set; }
+
+		/// <summary>
 		/// Initializes a new instance of the <see cref="MarketDataMessage"/>.
 		/// </summary>
 		public MarketDataMessage()
@@ -301,8 +353,7 @@ namespace StockSharp.Messages
 		{
 			base.CopyTo(destination);
 
-			destination.Arg = Arg;
-			destination.DataType = DataType;
+			destination.DataType2 = DataType2.TypedClone();
 			destination.From = From;
 			destination.To = To;
 			destination.IsSubscribe = IsSubscribe;
@@ -311,7 +362,7 @@ namespace StockSharp.Messages
 			destination.MaxDepth = MaxDepth;
 			destination.NewsId = NewsId;
 			destination.BuildMode = BuildMode;
-			destination.BuildFrom = BuildFrom;
+			destination.BuildFrom = BuildFrom?.TypedClone();
 			destination.BuildField = BuildField;
 			destination.IsCalcVolumeProfile = IsCalcVolumeProfile;
 			destination.AllowBuildFromSmallerTimeFrame = AllowBuildFromSmallerTimeFrame;
@@ -319,15 +370,15 @@ namespace StockSharp.Messages
 			destination.IsFinished = IsFinished;
 			destination.BoardCode = BoardCode;
 			destination.RefreshSpeed = RefreshSpeed;
+			destination.DepthBuilder = DepthBuilder;
+			destination.FillGaps = FillGaps;
+			destination.PassThroughOrderBookInrement = PassThroughOrderBookInrement;
 		}
 
 		/// <inheritdoc />
 		public override string ToString()
 		{
-			var str = base.ToString() + $",Type={DataType},IsSubscribe={IsSubscribe}";
-
-			if (Arg != null)
-				str += $",Arg={Arg}";
+			var str = base.ToString() + $",DataType={DataType2},IsSubscribe={IsSubscribe}";
 
 			if (TransactionId != default)
 				str += $",TransId={TransactionId}";
@@ -367,6 +418,12 @@ namespace StockSharp.Messages
 
 			if (RefreshSpeed != null)
 				str += $",Speed={RefreshSpeed}";
+
+			if (FillGaps)
+				str += $",Gaps={FillGaps}";
+
+			if (PassThroughOrderBookInrement)
+				str += $",IncOnly={PassThroughOrderBookInrement}";
 
 			return str;
 		}

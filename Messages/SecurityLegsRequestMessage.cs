@@ -8,7 +8,7 @@ namespace StockSharp.Messages
 	/// </summary>
 	[Serializable]
 	[DataContract]
-	public class SecurityLegsRequestMessage : Message, ISubscriptionMessage
+	public class SecurityLegsRequestMessage : BaseRequestMessage
 	{
 		/// <summary>
 		/// Initialize <see cref="SecurityLegsRequestMessage"/>.
@@ -19,8 +19,7 @@ namespace StockSharp.Messages
 		}
 
 		/// <inheritdoc />
-		[DataMember]
-		public long TransactionId { get; set; }
+		public override DataType DataType => DataType.SecurityLegs;
 
 		/// <summary>
 		/// The filter for securities search.
@@ -34,42 +33,14 @@ namespace StockSharp.Messages
 		/// <returns>Copy.</returns>
 		public override Message Clone()
 		{
-			return new SecurityLegsRequestMessage
+			var clone = new SecurityLegsRequestMessage
 			{
-				TransactionId = TransactionId,
 				Like = Like,
 			};
-		}
 
-		/// <inheritdoc />
-		public override string ToString()
-		{
-			return base.ToString() + $",Like={Like},TrId={TransactionId}";
-		}
+			CopyTo(clone);
 
-		DateTimeOffset? ISubscriptionMessage.From
-		{
-			get => null;
-			set { }
-		}
-
-		DateTimeOffset? ISubscriptionMessage.To
-		{
-			// prevent for online mode
-			get => DateTimeOffset.MaxValue;
-			set { }
-		}
-
-		bool ISubscriptionMessage.IsSubscribe
-		{
-			get => true;
-			set { }
-		}
-
-		long IOriginalTransactionIdMessage.OriginalTransactionId
-		{
-			get => 0;
-			set { }
+			return clone;
 		}
 	}
 }

@@ -17,6 +17,8 @@ namespace StockSharp.Algo.Positions
 {
 	using System;
 
+	using Ecng.Common;
+
 	using StockSharp.Messages;
 
 	/// <summary>
@@ -68,7 +70,7 @@ namespace StockSharp.Algo.Positions
 		/// <returns>Copy.</returns>
 		public override IMessageChannel Clone()
 		{
-			return new PositionMessageAdapter((IMessageAdapter)InnerAdapter.Clone());
+			return new PositionMessageAdapter(InnerAdapter.TypedClone());
 		}
 	}
 }

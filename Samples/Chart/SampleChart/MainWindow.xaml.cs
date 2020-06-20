@@ -10,8 +10,6 @@
 	using System.Windows.Controls;
 	using System.Windows.Media;
 
-	using DevExpress.Xpf.Core;
-
 	using MoreLinq;
 
 	using Ecng.Backup;
@@ -21,6 +19,7 @@
 	using Ecng.Configuration;
 	using Ecng.Xaml;
 	using Ecng.Xaml.Charting.Visuals.Annotations;
+	using Ecng.Xaml.DevExp.Yandex;
 
 	using StockSharp.Algo;
 	using StockSharp.Algo.Candles;
@@ -33,6 +32,8 @@
 	using StockSharp.Logging;
 	using StockSharp.Messages;
 	using StockSharp.Xaml.Charting;
+    using StockSharp.Xaml;
+	using StockSharp.Configuration;
 
 	public partial class MainWindow
 	{
@@ -88,8 +89,6 @@
 				.Timer(OnDataTimer)
 				.Interval(TimeSpan.FromMilliseconds(1));
 
-			Theme.SelectedIndex = 1;
-
 			SeriesEditor.Settings = new CandleSeries
 			{
 				CandleType = typeof(TimeFrameCandle),
@@ -98,6 +97,13 @@
 
 			ConfigManager.RegisterService<IMarketDataProvider>(_testMdProvider);
 			ConfigManager.RegisterService<ISecurityProvider>(_securityProvider);
+
+			ThemeExtensions.ApplyDefaultTheme();
+		}
+
+		private void Theme_OnClick(object sender, RoutedEventArgs e)
+		{
+			ThemeExtensions.Invert();
 		}
 
 		private void HistoryPath_OnFolderChanged(string path)
@@ -126,9 +132,9 @@
 				MessageBox.Show($"RegisterOrder: sec={order.Security.Id}, {order.Direction} {order.Volume}@{order.Price}");
 			};
 
-			ConfigManager.RegisterService<IBackupService>(new YandexDiskService());
+			ConfigManager.RegisterService<IBackupService>(new YandexDiskService(YandexLoginWindow.Authorize(this)));
 
-			HistoryPath.Folder = @"..\..\..\..\Testing\HistoryData\".ToFullPath();
+			HistoryPath.Folder = Paths.HistoryDataPath;
 
 			Chart.SecurityProvider = _securityProvider;
 
@@ -142,15 +148,6 @@
 		{
 			_dataTimer.Dispose();
 			base.OnClosing(e);
-		}
-
-		private void OnThemeSelectionChanged(object sender, SelectionChangedEventArgs e)
-		{
-			var theme = (string)((ComboBoxItem)Theme.SelectedValue).Content;
-			if (theme.IsEmpty())
-				return;
-
-			ApplicationThemeHelper.ApplicationThemeName = theme;
 		}
 
 		private void Chart_OnSubscribeCandleElement(ChartCandleElement el, CandleSeries ser)
@@ -249,7 +246,7 @@
 											 _security,
 											 SeriesEditor.Settings.Arg) { IsCalcVolumeProfile = true };
 
-				_candleElement = new ChartCandleElement { FullTitle = "Candles" };
+				_candleElement = new ChartCandleElement();
 				Chart.AddElement(_areaComb, _candleElement, series);
 			});
 		}
@@ -268,7 +265,7 @@
 			_holder.CreateCandleSeries(_transactionId, series);
 
 			_candleTransform.Process(new ResetMessage());
-			_candleBuilder = _builderProvider.Get(msgType.ToCandleMarketDataType());
+			_candleBuilder = _builderProvider.Get(msgType);
 
 			var storage = new StorageRegistry();
 
@@ -301,7 +298,7 @@
 							foreach (var candle in candles)
 							{
 								_currCandle = candle;
-								_updatedCandles.Add((CandleMessage)candle.Clone());
+								_updatedCandles.Add(candle.TypedClone());
 							}
 						}
 
@@ -435,7 +432,7 @@
 					foreach (var candle in candles)
 					{
 						_currCandle = candle;
-						_updatedCandles.Add((CandleMessage)candle.Clone());
+						_updatedCandles.Add(candle.TypedClone());
 					}
 				}
 			}
@@ -715,7 +712,7 @@
 			}
 		}
 
-		class TestMarketDataProvider : IMarketDataProviderEx
+		private class TestMarketDataProvider : IMarketDataProviderEx
 		{
 			public event Action<Security, IEnumerable<KeyValuePair<Level1Fields, object>>, DateTimeOffset, DateTimeOffset> ValuesChanged;
 
@@ -780,7 +777,9 @@
 
 			IEnumerable<Subscription> ISubscriptionProvider.Subscriptions => throw new NotImplementedException();
 
+			event Action<Subscription, Message> ISubscriptionProvider.SubscriptionReceived { add { } remove { } }
 			event Action<Subscription, Level1ChangeMessage> ISubscriptionProvider.Level1Received { add { } remove { } }
+			event Action<Subscription, QuoteChangeMessage> ISubscriptionProvider.OrderBookReceived { add { } remove { } }
 			event Action<Subscription, Trade> ISubscriptionProvider.TickTradeReceived { add { } remove { } }
 			event Action<Subscription, Security> ISubscriptionProvider.SecurityReceived { add { } remove { } }
 			event Action<Subscription, ExchangeBoard> ISubscriptionProvider.BoardReceived { add { } remove { } }
@@ -808,16 +807,15 @@
 			Subscription IMarketDataProviderEx.SubscribeMarketData(MarketDataMessage message) => null;
 			void IMarketDataProviderEx.UnSubscribeMarketData(MarketDataMessage message) { }
 
-			Subscription IMarketDataProviderEx.RegisterFilteredMarketDepth(Security security) => null;
-			void IMarketDataProviderEx.UnRegisterFilteredMarketDepth(Security security) { }
+			Subscription IMarketDataProviderEx.SubscribeFilteredMarketDepth(Security security) => null;
 
-			Subscription IMarketDataProviderEx.SubscribeMarketDepth(Security security, DateTimeOffset? from, DateTimeOffset? to, long? count, MarketDataBuildModes buildMode, MarketDataTypes? buildFrom, int? maxDepth, IMessageAdapter adapter) => null;
+			Subscription IMarketDataProviderEx.SubscribeMarketDepth(Security security, DateTimeOffset? from, DateTimeOffset? to, long? count, MarketDataBuildModes buildMode, DataType buildFrom, int? maxDepth, TimeSpan? refreshSpeed, IOrderLogMarketDepthBuilder depthBuilder, bool passThroughOrderBookInrement, IMessageAdapter adapter) => null;
 			void IMarketDataProviderEx.UnSubscribeMarketDepth(Security security) { }
 
-			Subscription IMarketDataProviderEx.SubscribeTrades(Security security, DateTimeOffset? from, DateTimeOffset? to, long? count, MarketDataBuildModes buildMode, MarketDataTypes? buildFrom, IMessageAdapter adapter) => null;
+			Subscription IMarketDataProviderEx.SubscribeTrades(Security security, DateTimeOffset? from, DateTimeOffset? to, long? count, MarketDataBuildModes buildMode, DataType buildFrom, IMessageAdapter adapter) => null;
 			void IMarketDataProviderEx.UnSubscribeTrades(Security security) { }
 
-			Subscription IMarketDataProviderEx.SubscribeLevel1(Security security, DateTimeOffset? from, DateTimeOffset? to, long? count, MarketDataBuildModes buildMode, MarketDataTypes? buildFrom, IMessageAdapter adapter) => null;
+			Subscription IMarketDataProviderEx.SubscribeLevel1(Security security, DateTimeOffset? from, DateTimeOffset? to, long? count, MarketDataBuildModes buildMode, DataType buildFrom, IMessageAdapter adapter) => null;
 			void IMarketDataProviderEx.UnSubscribeLevel1(Security security) { }
 
 			Subscription IMarketDataProviderEx.SubscribeOrderLog(Security security, DateTimeOffset? from, DateTimeOffset? to, long? count, IMessageAdapter adapter) => null;

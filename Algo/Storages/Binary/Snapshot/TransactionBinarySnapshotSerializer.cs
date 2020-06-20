@@ -494,7 +494,7 @@ namespace StockSharp.Algo.Storages.Binary.Snapshot
 			if (message.SecurityId.IsDefault())
 				throw new ArgumentException(message.ToString());
 
-			var copy = (ExecutionMessage)message.Clone();
+			var copy = message.TypedClone();
 
 			//if (copy.TransactionId == 0)
 			//	copy.TransactionId = message.OriginalTransactionId;
@@ -628,6 +628,24 @@ namespace StockSharp.Algo.Storages.Binary.Snapshot
 
 			if (changes.HasTradeInfo)
 				message.HasTradeInfo = true;
+
+			if (changes.AveragePrice != null)
+				message.AveragePrice = changes.AveragePrice;
+
+			if (changes.MinVolume != null)
+				message.MinVolume = changes.MinVolume;
+
+			if (changes.Yield != null)
+				message.Yield = changes.Yield;
+
+			if (changes.PositionEffect != null)
+				message.PositionEffect = changes.PositionEffect;
+
+			if (changes.PostOnly != null)
+				message.PostOnly = changes.PostOnly;
+
+			if (changes.Initiator != null)
+				message.Initiator = changes.Initiator;
 
 			message.LocalTime = changes.LocalTime;
 			message.ServerTime = changes.ServerTime;

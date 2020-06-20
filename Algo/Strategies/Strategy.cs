@@ -346,8 +346,10 @@ namespace StockSharp.Algo.Strategies
 					_connector.MassOrderCancelFailed2 -= OnConnectorMassOrderCancelFailed2;
 					_connector.MassOrderCanceled -= OnConnectorMassOrderCanceled;
 					_connector.MassOrderCanceled2 -= OnConnectorMassOrderCanceled2;
+#pragma warning disable CS0618 // Type or member is obsolete
 					_connector.NewPortfolio -= OnConnectorNewPortfolio;
 					_connector.PortfolioChanged -= OnConnectorPortfolioChanged;
+#pragma warning restore CS0618 // Type or member is obsolete
 				}
 
 				_connector = value;
@@ -369,8 +371,10 @@ namespace StockSharp.Algo.Strategies
 					_connector.MassOrderCancelFailed2 += OnConnectorMassOrderCancelFailed2;
 					_connector.MassOrderCanceled += OnConnectorMassOrderCanceled;
 					_connector.MassOrderCanceled2 += OnConnectorMassOrderCanceled2;
+#pragma warning disable CS0618 // Type or member is obsolete
 					_connector.NewPortfolio += OnConnectorNewPortfolio;
 					_connector.PortfolioChanged += OnConnectorPortfolioChanged;
+#pragma warning restore CS0618 // Type or member is obsolete
 				}
 
 				foreach (var strategy in ChildStrategies)
@@ -1123,11 +1127,11 @@ namespace StockSharp.Algo.Strategies
 		/// </summary>
 		[Obsolete("Use OrderReRegistering event.")]
 		public event Action<Order, Order> StopOrderReRegistering;
-#pragma warning restore 67
 
 		/// <inheritdoc />
 		[Obsolete("Use OrderCancelFailed event.")]
 		public event Action<OrderFail> StopOrderCancelFailed;
+#pragma warning restore 67
 
 		/// <inheritdoc />
 		public event Action<MyTrade> NewMyTrade;
@@ -1287,7 +1291,7 @@ namespace StockSharp.Algo.Strategies
 			{
 				Rules.RemoveRulesByToken(nOrder, null);
 
-				nOrder.State = nOrder.State.CheckModification(OrderStates.Failed);
+				nOrder.ApplyNewState(OrderStates.Failed, this);
 
 				var fail = new OrderFail { Order = nOrder, Error = excp, ServerTime = CurrentTime };
 
@@ -1713,7 +1717,7 @@ namespace StockSharp.Algo.Strategies
 			if (!Rules.IsEmpty())
 			{
 				this.AddLog(LogLevels.Debug,
-					() => LocalizedStrings.Str1396Params.Put(Rules.Count, Rules.Select(r => r.ToString()).Join(", ")));
+					() => LocalizedStrings.Str1396Params.Put(Rules.Count, Rules.Select(r => r.ToString()).JoinCommaSpace()));
 
 				return;
 			}
@@ -1881,11 +1885,14 @@ namespace StockSharp.Algo.Strategies
 
 					var quoteMsg = (QuoteChangeMessage)message;
 
+					if (quoteMsg.State != null)
+						return;
+
 					// TODO на истории когда в стакане будут свои заявки по планкам, то противополжная сторона стакана будет пустой
 					// необходимо исключать свои заявки как-то иначе.
 					if (quoteMsg.Asks.IsEmpty() || quoteMsg.Bids.IsEmpty())
 						return;
-					
+
 					PnLManager.ProcessMessage(message);
 					msgTime = quoteMsg.ServerTime;
 
@@ -2412,6 +2419,9 @@ namespace StockSharp.Algo.Strategies
 		}
 
 		/// <inheritdoc />
+		public Security LookupById(SecurityId id) => SecurityProvider.LookupById(id);
+
+		/// <inheritdoc />
 		public IEnumerable<Security> Lookup(SecurityLookupMessage criteria) => SecurityProvider.Lookup(criteria);
 
 		/// <summary>
@@ -2434,7 +2444,7 @@ namespace StockSharp.Algo.Strategies
 		/// <summary>
 		/// Convert to <see cref="StrategyInfoMessage"/>.
 		/// </summary>
-		/// <param name="transactionId">ID of the original message <see cref="StrategyLookupMessage.TransactionId"/> for which this message is a response.</param>
+		/// <param name="transactionId">ID of the original message <see cref="ITransactionIdMessage.TransactionId"/> for which this message is a response.</param>
 		/// <returns>The message contains information about strategy.</returns>
 		public virtual StrategyInfoMessage ToInfoMessage(long transactionId = 0)
 		{
@@ -2525,8 +2535,8 @@ namespace StockSharp.Algo.Strategies
 
 					var order = new Order
 					{
-						Security = secId == null ? Security : this.LookupById(secId),
-						Portfolio = pfName == null ? Portfolio : Connector.LookupByPortfolioName(pfName),
+						Security = secId.IsEmpty() ? Security : this.LookupById(secId),
+						Portfolio = pfName.IsEmpty() ? Portfolio : Connector.LookupByPortfolioName(pfName),
 						Direction = side,
 						Volume = volume,
 						Price = price,

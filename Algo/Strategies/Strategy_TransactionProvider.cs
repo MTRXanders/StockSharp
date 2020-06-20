@@ -14,8 +14,8 @@ namespace StockSharp.Algo.Strategies
 	{
 		private Position ProcessPositionInfo(Tuple<SecurityId, string> key, decimal value)
 		{
-			var security = SafeGetConnector().GetSecurity(key.Item1);
-			var pf = SafeGetConnector().GetPortfolio(key.Item2);
+			var security = SafeGetConnector().LookupById(key.Item1);
+			var pf = SafeGetConnector().LookupByPortfolioName(key.Item2);
 			var position = _positions.SafeAdd(Tuple.Create(security, pf), k => new Position
 			{
 				Security = security,
@@ -46,24 +46,14 @@ namespace StockSharp.Algo.Strategies
 			remove => _positionChanged -= value;
 		}
 
-		Position IPositionProvider.GetPosition(Portfolio portfolio, Security security, string clientCode, string depoName)
+		Position IPositionProvider.GetPosition(Portfolio portfolio, Security security, string clientCode, string depoName, TPlusLimits? limitType)
 		{
 			return _positions.TryGetValue(Tuple.Create(security, portfolio));
 		}
 
-		void IPositionProvider.SubscribePositions(Security security, Portfolio portfolio, DateTimeOffset? from, DateTimeOffset? to, long? count, IMessageAdapter adapter)
+		Portfolio IPortfolioProvider.LookupByPortfolioName(string name)
 		{
-			SafeGetConnector().SubscribePositions(security, portfolio, from, to, count, adapter);
-		}
-
-		void IPositionProvider.UnSubscribePositions(long originalTransactionId)
-		{
-			SafeGetConnector().UnSubscribePositions(originalTransactionId);
-		}
-
-		Portfolio IPortfolioProvider.GetPortfolio(string name)
-		{
-			return SafeGetConnector().GetPortfolio(name);
+			return SafeGetConnector().LookupByPortfolioName(name);
 		}
 
 		IEnumerable<Portfolio> IPortfolioProvider.Portfolios => Portfolio == null ? Enumerable.Empty<Portfolio>() : new[] { Portfolio };
